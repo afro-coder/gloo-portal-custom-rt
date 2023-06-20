@@ -1,0 +1,136 @@
+apiVersion: gateway.solo.io/v1
+kind: RouteTable
+metadata:
+  #labels:
+  #  apiproducts.portal.gloo.solo.io: petstore-product.default
+  #  apiproducts.portal.gloo.solo.io/version: v1
+  #  cluster.multicluster.solo.io: ""
+  #  environments.portal.gloo.solo.io: dev.default
+  name: petstore-custom-rt
+  namespace: default
+    #ownerReferences:
+    #- apiVersion: portal.gloo.solo.io/v1beta1
+    #  blockOwnerDeletion: true
+    #  controller: true
+    #  kind: Environment
+    #  name: dev
+    #  uid: 25cc77f7-5f2d-4ff1-9262-93758c771289
+spec:
+  routes:
+  - matchers:
+    - exact: /api/pets
+      methods:
+      - GET
+      - OPTIONS
+    name: petstore-product.default.petstore-schema.default.findPets
+    options:
+      stagedTransformations:
+        regular:
+          requestTransforms:
+          - matcher:
+              prefix: /
+            requestTransformation:
+              logRequestResponseInfo: true
+              transformationTemplate:
+                headers:
+                  x-early-request-header:
+                    text: "early"
+                body:
+                  text: '{% if header(:status) != 404 %} {{ body() }} {% endif %}'
+    routeAction:
+      multi:
+        destinations:
+        - destination:
+            upstream:
+              name: default-petstore-8080
+              namespace: gloo-system
+          weight: 1
+  - matchers:
+    - exact: /post
+      methods:
+      - POST
+      - OPTIONS
+    name: petstore-product.default.petstore-schema.default.addPet
+    options:
+      stagedTransformations:
+        early:
+          requestTransforms:
+          - matcher:
+              prefix: /
+            requestTransformation:
+              logRequestResponseInfo: true
+              transformationTemplate:
+                headers:
+                  x-early-request-header:
+                    text: "early"
+                      #passthrough: {}
+                #body:
+                #  text: '{% if header(:status) != 404 %} {{ body() }} {% endif %}'
+    routeAction:
+      multi:
+        destinations:
+        - destination:
+            upstream:
+              name: httpbun
+              namespace: gloo-system
+          weight: 1
+  - matchers:
+    - methods:
+      - DELETE
+      - OPTIONS
+      regex: /api/pets/[^/]+?
+    name: petstore-product.default.petstore-schema.default.deletePet
+    options:
+      stagedTransformations:
+        early:
+          requestTransforms:
+          - matcher:
+              prefix: /
+            requestTransformation:
+              transformationTemplate:
+                dynamicMetadataValues:
+                - key: environment
+                  value:
+                    text: dev.default
+                - key: api_product
+                  value:
+                    text: petstore-product.default
+                passthrough: {}
+    routeAction:
+      multi:
+        destinations:
+        - destination:
+            upstream:
+              name: default-petstore-8080
+              namespace: gloo-system
+          weight: 1
+  - matchers:
+    - methods:
+      - GET
+      - OPTIONS
+      regex: /api/pets/[^/]+?
+    name: petstore-product.default.petstore-schema.default.findPetById
+    options:
+      stagedTransformations:
+        early:
+          requestTransforms:
+          - matcher:
+              prefix: /
+            requestTransformation:
+              transformationTemplate:
+                dynamicMetadataValues:
+                - key: environment
+                  value:
+                    text: dev.default
+                - key: api_product
+                  value:
+                    text: petstore-product.default
+                passthrough: {}
+    routeAction:
+      multi:
+        destinations:
+        - destination:
+            upstream:
+              name: default-petstore-8080
+              namespace: gloo-system
+          weight: 1
