@@ -31,3 +31,5 @@ spec:
     - addr: httpbun.org
       port: 443
 ```
+
+Note: `passthrough:{}` in transformation isn't supported for body logging
